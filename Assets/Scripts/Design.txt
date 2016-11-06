@@ -1,0 +1,159 @@
+// Design for Totems game
+
+// Data structures
+Two major parts, tile grid and hint section (contained in setting)
+Tile grid made up of multiple Totems which hold Tiles
+Tiles have x number of symbols, 1 to x symbols can be displayed at a time
+
+For solver, use an array to represent the grid tiles (use mod math over multidementional)
+
+Setting (Real)
+Setting->GridSpace (Real)
+Setting->HintSpace (Real)
+Setting->GridSpace->Totem (Virtual)
+Setting->GridSpace->Totem->Tile (Prefab)
+Setting->GridSpace->Totem->Tile->Symbol (Prefab)
+Setting->HintSpace->Hint (Prefab)
+Setting->HintSpace->Hint->Relation (Virtual?)
+Camera (Real)
+Light (Real)
+UI Overlay (Real?)
+
+Setting Object
+isVertical = false  :  Bool indicating Vertical or Horizontal layout (from editor, later from other scene)
+rows = 0  :  Int number of rows to determine scale (from editor, later from other scene)
+cols = 0  :  Int number of cols to determine scale (from editor, later from other scene)
+child_gridSpace  :  GridSpace obj (from editor)
+child_hintSpace  :  HintSpace obj (from editor)
+camera  :  Camera obj (from editor)
+light  :  Light obj (from editor)
+Start()
+PositionCamera()
+GenerateGrid()
+GenerateHints()
+
+GridSpace Object
+rows  :  passed number of rows (from parent)
+cols  :  passed number of cols (from parent)
+bgMaterial  :  Material behind the totems (from editor)
+embiggenCount = 0  :  Int number of embiggened tiles (private)
+Xtotems[]  :  Array of Totem objs (private)X
+symbolMap[]  :  Array of symbolIDs signifying embiggened symbols (private)
+Start ()
+GenerateTotems ()
+CreateBackground ()
+UpdateEmbiggenedSymbols (int index, int symbolID, bool isEmbiggened) [Called from Symbol:Embiggen and Symbol:Ensmallen]
+CheckWinCondition () [Called from GridSpace:UpdateEmbiggenedSymbols]
+
+Totem Object
+rows  :  passed number or rows (from parent)
+colNum  :  passed col number (from parent)
+symbolCounts[]  :  Array of Int counts for each symbol (private)
+tilesList[]  :  Array of Tile objs (private)
+Start ()
+GenerateTiles ()
+UpdateSymbolTracking (int symbolID, int tileID, int amount) [Called from Symbol:Activate and Symbol:Deactivate]
+ActivateOtherSymbolss (int symbolID, int tileID) [Called from Symbol:Ensmallen]
+DeactivateOtherSymbols(int symbolID, int tileID) [Called from Symbol:Embiggen]
+ActivateAllSymbols() [Called from Totem:ActivateOtherSymbols]
+
+Tile Object
+rows  :  passed number or rows (from parent)
+tileNum  :  passed col number for material selection (from parent)
+prefab_symbol  :  prefab for symbol object (from editor)
+parent_totem  :  parent Totem obj (private)
+symbols[]  :  Array of Symbol objs (private)
+symbolCount  :  count of symbols left active in the tile
+hasEmbiggened  :  bool indicating whether a symbol on this tile is embiggened
+Start ()
+GenerateSymbols ()
+CheckLastSymbol_Tile () [Called from Totem:UpdateSymbolTracking]
+CheckLastSymbol_Totem(int symbolID) [Called from Totem:UpdateSymbolTracking]
+ActivateSymbol(int symbolID) [Called from Totem:ActivateOtherSymbols]
+DeactivateAllSymbols () [Called from Totem:DeactivateOtherSymbols]
+
+Symbol Object
+isActive = true  :  Bool active or not (private)
+isEmbiggened = false  :  Bool embiggened or not (private)
+ggparent_gridSpace  :  top level (almost) gridSpace obj (private)
+gparent_totem  :  parent Tile's parent Totem obj (private)
+rend  :  Renderer for the Symbol GameObject (private)
+Start ()
+OnMouseOver ()
+OnMouseExit ()
+OnMouseDown ()
+Activate () [Called from Symbol:OnMouseDown, Totem:ActivateAllSymbols, and Totem:ActivateOtherSymbols]
+Deactivate () [Called from Symbol:OnMouseDown, Totem:DeactivateOtherSymbols, and Totem:DeactivateAllSymbols]
+Ensmallen () [Called from Symbol:OnMouseDown]
+Embiggen (bool isLastSymbolOnTile) [Called from Tile:CheckLastSymbol_Totem and Tile:CheckLastSymbol_Tile]
+
+FUNCTIONS
+Symbol:OnMouseOver ()  :  Changes the material when the user hovers over the symbol
+Symbol:OnMouseExit ()  :  Changes the material when the user stops hovering over the symbol
+Symbol:OnMouseDown ()  :  If embiggened, call Symbol:Ensmallen - otherwise call Symbol:Deactivate if active, or Symbol:Activate if inactive
+Symbol:Activate ()  :  Change material to active, call Totem:UpdateSymbolTracking
+Symbol:Deactivate ()  :  Change material to inactive, call Totem:UpdateSymbolTracking
+Symbol:Ensmallen ()  :  Resizes the symbol, calls GridSpace:UpdateEmbiggenedSymbols(index, symbolID, false), calls Totem:ActivateOtherSymbols(tileID, symbolID)
+Symbol:Embiggen ()  :  Resizes the symbol, calls GridSpace:UpdateEmbiggenedSymbols(index, symbolID, true), calls Totem:DeactivateOtherSymbols(tileID, symbolID)
+
+Tile:CheckLastSymbol_Tile()  :  Check symbols to count how many are active, if 1 then call Symbol:Embiggen(true)
+Tile:CheckLastSymbol_Totem(int symbolID)  :  Call Symbol:Embiggen(false) if symbol with SymbolID is active and returns true if so
+Tile:ActivateSymbol(int symbolID)  :  Calls Symbol:Activate for the given symbolID
+Tile:DeactivateAllSymbols()  :  Loops through each symbol and calls Symbol:Deactivate()
+
+Totem:UpdateSymbolTracking(int SymbolID, int tileID, int amount)  :  Update symbolCounts array, calls Tile:CheckLastSymbol_Totem if symbolCount is 1, calls Tile:CheckLastSymbol_Tile after
+Totem:ActivateOtherSymbols(int symbolID, int tileID)  :  If symbolCount is not > 1, loop through other tiles and calls Tile:ActivateSymbol(), call Totem:ActivateAllSymbols() after (either way)
+Totem:DeactivateOtherSymbols(int tileID, intSymbolID)  :  Calls Tile:DeactivateAllSymbols(), loops through other tiles and calls Symbol:Deactivate() for symbolID
+Totem:ActivateAllSymbols()  :  Loops through each symbol and calls Symbol:Activate() if the symbol doesn't have an embiggened version in the totem already
+
+GridSpace:UpdateEmbiggenedSymbols(int index, int symbolID, isEmbiggened)  :  Updates embiggenedSymbols array, updates embiggenedCount, Calls CheckWinCondition if isEmbiggened is true and EmbiggenedCount is == rows * cols
+GridSpace:CheckWinCondition()  :  Compares embiggenedSymbols array to solution array, calls UI:SetWinCondition(true) if they're equal, calls UI:SetWinCondition(false) if they're not
+UI:SetWinCondition(bool isWinner)  :  Updates the UI to show whether the player won or "lost" the game
+
+
+
+// Tile has a byte keeping track of the totems left
+// To check if a particular totem is displayed, & with byte that represents that totem
+// So to check if third totem is still possible, & with 00100000, which is the same as & 1 << 5
+// To ADD that totem to the byte, |= 00100000 which is the same as |= 1 << 5
+// To REMOVE that totem from the byte, &= 11011111 which is the same as &= ~(1 << 5)
+
+
+// Add the basic positional hints for each tile
+// X<->Y    = tiles are in line with each other at the same height (row)
+// X-^-Y    = X tile is above Y tile in the totem
+// X-v-Y    = X tile is below Y tile in the totem
+// X|Y|Z    = Y tile is between X and Z in the totem
+// X | Y    = X tile is next to Y tile in the totem
+// X / Y    = X tile is on top of Y tile in the totem
+// X \ Y    = X tile is under Y tile in the totem
+enum Relation {Above, Below, Inline, Over, Under, Between};
+// Could combine into one loop for each symbol index and then test relations based on row and column to have better performance
+
+// SOLVER
+
+// If hint is up & down
+// Check for one of the cubes
+
+
+TEST CONDITION:
+All tiles embiggened except 3
+First tile has symbols 1 and 2 left
+Second tile has symbols 1, 2 and 3 left
+Third tile has symbols 3 and 4 left (4 is already embiggened)
+Deactivate symbol 3 in third tile
+Symbol 4 embiggens - duplicate embiggened tile
+Symbol 3 embiggens
+Symbol 1 embiggens
+Whole board is embiggened (win condition is checked)
+Win condition fails because there are two 4s and no 2s
+User clicks bottom 4 and it turns to a 2 immediately
+Whole board is embiggened again (win condition is checked)
+Win condition fails because 2 and 4 tiles are swapped
+User clicks 2 and only 2 tile shows...make sure it doesn't embiggen or loop
+User clicks 4 and 4 and 2 tiles embiggen, 4 symbol is also added to other tile
+User clicks 4 symbol on 2 tile
+2 embiggens
+4 embiggens
+Whole board is embiggened again (win condition is checked)
+Win condition passes, user wins

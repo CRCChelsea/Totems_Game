@@ -1,0 +1,219 @@
+// Design for Totems game
+
+// Data structures
+// Two major parts, tile grid and hint section
+// Array to represent grid (use mod math over multidementional), holdes tiles
+// Tile has x number of potentials, 1 to x potentials can be displayed at a time
+// Byte holds potentials, each bit is a potential (so no more than 8)
+
+// Setting
+// Grid
+// Tile
+// Totem
+
+// Tile has a byte keeping track of the totems left
+// To check if a particular totem is displayed, & with byte that represents that totem
+// So to check if third totem is still possible, & with 00100000, which is the same as & 1 << 5
+// To ADD that totem to the byte, |= 00100000 which is the same as |= 1 << 5
+// To REMOVE that totem from the byte, &= 11011111 which is the same as &= ~(1 << 5)
+
+
+// Generate solution, given: input_rows and input_cols
+int rows = input_rows;
+int cols = input_cols;
+
+String solution[cols][rows];
+
+// Loop through each totem and randomize the stack
+for (int i = 0; i < cols; i++)
+{
+	// Populate the list with variable letters
+	char[] variables = "ABCDEFGHIJ".ToCharArray(0, rows);
+		
+	// Now shuffle the list (Knuth-Fisher-Yates shuffle algorithm)
+	Random r = new Random();
+	for (int pos = rows - 1; pos > 0; pos--)
+	{
+		// Swap the current card with a random one
+		int n = r.Next(pos+1);
+		Swap(variables[pos], variables[n]);
+	}
+	
+	// Now set the randomized totem in the solution and repeat for next one
+	solution[i] = variables;
+}
+
+// Add the basic positional hints for each tile
+// X<->Y    = tiles are in line with each other at the same height (row)
+// X-^-Y    = X tile is above Y tile in the totem
+// X-v-Y    = X tile is below Y tile in the totem
+// X|Y|Z    = Y tile is between X and Z in the totem
+// X | Y    = X tile is next to Y tile in the totem
+// X / Y    = X tile is on top of Y tile in the totem
+// X \ Y    = X tile is under Y tile in the totem
+enum Relation {Above, Below, Inline, Over, Under, Between};
+
+// Generate hints/clues, given: solution, cols, rows
+List<Hint> hintList = new List<Hint>();
+
+for (int i = 0; i < cols; i++)
+{
+	for (int j = 0; j < rows; j++)
+	{
+		// Get the identifier for the tile (totem# + variable letter)
+		String variable = i.toString() + solution[i][j];
+		
+		// Individual related tiles
+		// X is on top of Y
+		String aboveTile = (j<rows-1) ? (i.toString() + solution[i][j+1]) : "";
+		// X is below Y
+		String belowTile = (j>0) ? (i.toString() + solution[i][j-1]) : "";
+		
+		// Sets of related tiles (X is current tile)
+		List<String> above = new List<String>(); // X is above Y
+		List<String> below = new List<String>(); // X is below Y
+		List<String> inline = new List<String>(); // X is in line with Y
+		
+		// Above - X is above these tiles in the totem
+		for (int k = rows-1; k < j; k--)
+		{
+			above.add(i.toString() + solution[i][k]);
+		}
+		
+		// Below - X is below these tiles in the totem
+		for (int k = 0; k < j; k++)
+		{
+			below.add(i.toString() + solution[i][k]);
+		}
+		
+		// Inline - X is in the same row as these tiles
+		for (int k = 0; k < j; k++)
+		{
+			inline.add(k.toString() + solution[k][j]);
+		}
+		for (int k = cols - 1; k > j; k--)
+		{
+			inline.add(k.toString() + solution[k][j];
+		}
+		
+		// Now that the relations have been calculated, add them to the hints list
+		// Could be more efficient and just add new Hints to the list as I go
+		// Did it this way so I could select a certain amount from each category, if desired
+		hintList.add(generateHintList(above, Relation.Above));
+		hintList.add(generateHintList(below, Relation.Below));
+		hintList.add(generateHintList(inline, Relation.Inline));
+		hintList.add(new Hint(variable, aboveTile, Relation.Over));
+		hintList.add(new Hint(variable, belowTile, Relation.Under));
+		hintList.add(new Hint(variable, aboveTile, belowTile));
+		hintList.add(new Hint(variable, belowTile, aboveTile));
+	}
+}
+
+public List<Hint> generateHintList(String xVar, List<String> yVars, int relation)
+{
+	List<Hint> returnList = new List<Hint>();
+	Iterator i = yVars.iterator();
+	for (i : yVars)
+	{
+		returnList.add(new Hint(variable, yVars.get(i), relation));
+	}
+}
+	
+// Hint class
+public class Hint
+{
+	private String 	variable1;
+	private String 	variable2;
+	private String 	variable3;
+
+	private int 	relationType;
+	
+	public Hint(String XVar, String YVar, relation)
+	{
+		variable1 = XVar;
+		variable2 = YVar;
+		relationType = relation;
+	}
+	
+	public Hint(String XVar, String YVar, String ZVar)
+	{
+		variable1 = YVar;
+		variable2 = XVar;
+		variable3 = ZVar;
+		relationType = Relation.Between;
+	}
+}
+
+// Now begin pruning the list, given: hintList, solution, rows, cols
+public List<Hint> pruneList(List<Hint> masterList, char[][] solution, int rows, int cols)
+{
+	// Unique list holds all the hints that have been deemed necessary
+	List<Hint> uniqueList = new List<Hint>;
+	
+	// Removed hint is a temporary holder for the hint we are trying to solve without
+	Hint removedHint;
+	
+	Random r = new Random();
+	for (int count = masterList.size(); !masterList.isEmpty(); count--)
+	{
+		int index = r.Next(count);
+		removedHint = masterList.get(index);
+		masterList.remove(index);
+		if(!solve(masterList + uniqueList, solution, rows, cols))
+		{
+			// If solve returns false, the puzzle could not be solved with the hints given
+			// So reinstate the most recently removed hint as a unique hint
+			uniqueList.add(removedHint);
+		}
+	}
+	return uniqueList;	
+}
+
+public boolean solve(List<Hint> hintList, char[][] solution, int rows, int cols)
+{
+	// Start by creating the full board array
+	GameBoard gb = new GameBoard(rows, cols);
+	
+}
+
+public class GameBoard
+{
+	private int rows;
+	private int cols;
+	private char[][] solution;
+	private Totem[] totems;
+	
+	public GameBoard(int _rows, int _cols, char[][] _solution)
+	{
+		rows = _rows;
+		cols = _cols;
+		solution = _solution;
+		
+		for (int i = 0; i < cols; i++)
+		{
+			totems[i] = new Totem(rows);
+		}
+	}
+}
+
+public class Totem
+{
+	//private List<char>[] varList;
+	private byte[] varList;
+	
+	public Totem(int rows)
+	{
+		// Pretty sure I could also keep track of this with a byte, up to 8 rows
+		varList = new byte[rows];
+		for (int i = 0; i < rows; i++)
+		{
+			varList[i] = 255; // 255 is 11111111 (all 8 bits exposed)
+		}
+		
+		//varList = new List<char>[rows];
+		//for (int i = 0; i < rows; i++)
+		//{
+			//varList[i] = new List<char>(){"ABCDEFGHIJ".ToCharArray(0, rows)};			
+		//}
+	}
+}
